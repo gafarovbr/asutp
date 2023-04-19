@@ -5,8 +5,8 @@
 #include <BLEServer.h>//бибилиотека для связи плат по bluetooth
 #include <BLEUtils.h>//бибилиотека для связи плат по bluetooth
 #include <BLE2902.h>//бибилиотека для связи плат по bluetooth
-#include <Wire.h>//библиотека для i2c датчика
-#include <iarduino_I2C_SHT.h>                     //   Подключаем библиотеку для работы с датчиком температуры и влажности I2C-flash.
+#include <Wire.h>   //библиотека для i2c датчика
+#include <iarduino_I2C_SHT.h> //   Подключаем библиотеку для работы с датчиком температуры и влажности I2C-flash.
 //#include <SoftwareSerial.h>//библиотека для работы esp32 с uart
 
 //SoftwareSerial mySerial(16, 17); // задаем обращение к 16 и 17 пину
@@ -36,7 +36,7 @@ long th, tl, h, l; //ppm;
 
 // Переменные таймера
 unsigned long lastTime = 0;
-unsigned long timerDelay = 5000;
+unsigned long timerDelay = 30000;
 
 bool deviceConnected = false;//булевая переменная подключение девайса
 
@@ -45,22 +45,22 @@ bool deviceConnected = false;//булевая переменная подклю�
 #define SERVICE_UUID "91bad492-b950-4226-aa2b-4ede9fa42f59"//адрес сервиса
 //переменные передающиеся по блютуз
 // Temperature Characteristic and Descriptor
-  BLECharacteristic bmeTemperatureCelsiusCharacteristics("cba1d466-344c-4be3-ab3f-189f80dd7518", BLECharacteristic::PROPERTY_NOTIFY);//тут будет передаваться информация о значениях
+  BLECharacteristic bmeTemperatureCelsiusCharacteristics("cba1d466-344c-4be3-ab3f-189f80dd7518", BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_WRITE);//тут будет передаваться информация о значениях
   BLEDescriptor bmeTemperatureCelsiusDescriptor(BLEUUID((uint16_t)0x2901));//тут передается более подробная информация про характеристику(формат и т.д.)
 
 
 // Humidity Characteristic and Descriptor
-BLECharacteristic bmeHumidityCharacteristics("ca73b3ba-39f6-4ab3-91ae-186dc9577d99", BLECharacteristic::PROPERTY_NOTIFY);//тут будет передаваться информация о значениях
+BLECharacteristic bmeHumidityCharacteristics("ca73b3ba-39f6-4ab3-91ae-186dc9577d99", BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_WRITE);//тут будет передаваться информация о значениях
 BLEDescriptor bmeHumidityDescriptor(BLEUUID((uint16_t)0x2902));//тут передается более подробная информация про характеристику(формат и т.д.)
 
 
 //Osvesh
-BLECharacteristic OSVCharacteristics("aeefac6e-3f16-4f69-8941-b8238b949687", BLECharacteristic::PROPERTY_NOTIFY);//тут будет передаваться информация о значениях
+BLECharacteristic OSVCharacteristics("aeefac6e-3f16-4f69-8941-b8238b949687", BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_WRITE);//тут будет передаваться информация о значениях
 BLEDescriptor OSVDescriptor(BLEUUID((uint16_t)0x2903));//тут передается более подробная информация про характеристику(формат и т.д.)
 
 
 //CO2
-BLECharacteristic PPMCharacteristics("3372b173-d90a-4a85-876d-c5f1e20de24a", BLECharacteristic::PROPERTY_NOTIFY);//тут будет передаваться информация о значениях
+BLECharacteristic PPMCharacteristics("3372b173-d90a-4a85-876d-c5f1e20de24a", BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_WRITE);//тут будет передаваться информация о значениях
 BLEDescriptor PPMDescriptor(BLEUUID((uint16_t)0x2904));//тут передается более подробная информация про характеристику(формат и т.д.)
 
 

@@ -132,7 +132,7 @@ bool connectToServer(BLEAddress pAddress) {
   temperatureCharacteristic = pRemoteService->getCharacteristic(temperatureCharacteristicUUID);   
   humidityCharacteristic = pRemoteService->getCharacteristic(humidityCharacteristicUUID);
   OSVCharacteristic = pRemoteService->getCharacteristic(OSVCharacteristicUUID);
-if (temperatureCharacteristic == nullptr || humidityCharacteristic == nullptr || OSVCharacteristic == nullptr) {
+ if (temperatureCharacteristic == nullptr || humidityCharacteristic == nullptr || OSVCharacteristic == nullptr) {
     Serial.print("Failed to find our characteristic UUID");
     return false;
   }
@@ -511,9 +511,9 @@ if (doConnect == true) {
 if (connectToServer(*pServerAddress)) {
   Serial.println("We are now connected to the BLE Server.");
   //Запускаем дескриптор после подсоединения (обр. связь)
-  temperatureCharacteristic->getDescriptor(BLEUUID((uint16_t)0x2902))->writeValue((uint8_t*)notificationOn, 2, true);
+  temperatureCharacteristic->getDescriptor(BLEUUID((uint16_t)0x2901))->writeValue((uint8_t*)notificationOn, 2, true);
   humidityCharacteristic->getDescriptor(BLEUUID((uint16_t)0x2902))->writeValue((uint8_t*)notificationOn, 2, true);
-  //OSVCharacteristic->getDescriptor(BLEUUID((uint16_t)0x2902))->writeValue((uint8_t*)notificationOn, 2, true);
+  OSVCharacteristic->getDescriptor(BLEUUID((uint16_t)0x2903))->writeValue((uint8_t*)notificationOn, 2, true);
   connected = true;
     } else {
       Serial.println("We have failed to connect to the server; Restart your device to scan for nearby BLE server again.");

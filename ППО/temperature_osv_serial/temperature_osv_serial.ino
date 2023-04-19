@@ -10,12 +10,12 @@ const int pinD5 = 5;                              // Пин подключени
 int prevVal = LOW;
 long th, tl, h, l, ppm;
 
-void setup(){                                     //
+void setup(){                                     // 
     delay(500);                                   // * Ждём завершение переходных процессов связанных с подачей питания.
     Serial.begin(9600);                           //
     while(!Serial){;}                             // * Ждём завершения инициализации шины UART.
     sht.begin();                                  //   Инициируем работу с датчиком температуры и влажности.
-    pinMode(pinD5, INPUT);
+    pinMode(pinD5, INPUT);                        
 
 }                                                 
                                                   
