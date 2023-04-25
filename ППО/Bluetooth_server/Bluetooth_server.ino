@@ -43,7 +43,7 @@ bool deviceConnected = false;
 
 // Humidity Characteristic and Descriptor
 BLECharacteristic bmeHumidityCharacteristics("ca73b3ba-39f6-4ab3-91ae-186dc9577d99", BLECharacteristic::PROPERTY_NOTIFY);
-BLEDescriptor bmeHumidityDescriptor(BLEUUID((uint16_t)0x2903));
+BLEDescriptor bmeHumidityDescriptor(BLEUUID((uint16_t)0x2902));
 
 //Setup callbacks onConnect and onDisconnect
 class MyServerCallbacks: public BLEServerCallbacks {
