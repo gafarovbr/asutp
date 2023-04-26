@@ -62,6 +62,8 @@ const uint8_t notificationOff[] = {0x0, 0x0};
 //Variables to store temperature and humidity
 char* temperatureChar;
 char* humidityChar;
+uint32_t temperature_uint;
+uint32_t humidity_uint;
 
 //Flags to check whether new temperature and humidity readings are available
 boolean newTemperature = false;
@@ -190,10 +192,13 @@ class MyAdvertisedDeviceCallbacks: public BLEAdvertisedDeviceCallbacks {
  
 //When the BLE Server sends a new temperature reading with the notify property
 static void temperatureNotifyCallback(BLERemoteCharacteristic* pBLERemoteCharacteristic, 
-                                        uint8_t* pData, size_t length, bool isNotify) {
-  temperatureChar = (char*)pData;
-  newTemperature = true;
-  Serial.print(newTemperature);
+                                        uint8_t* pData, size_t length, bool isNotify) {                                          
+  temperature_uint = pData[0];
+    for(int i = 1; i < length; i++) {
+      temperature_uint = temperature_uint | (pData[i] << i*8);
+    }
+  //Serial.print(temperature_uint);
+newTemperature = true;  
 }
 
 
@@ -202,21 +207,24 @@ static void temperatureNotifyCallback(BLERemoteCharacteristic* pBLERemoteCharact
 static void humidityNotifyCallback(BLERemoteCharacteristic* pBLERemoteCharacteristic, 
                                     uint8_t* pData, size_t length, bool isNotify) {
   //store humidity value
-  humidityChar = (char*)pData;
+  humidity_uint = pData[0];
+  for(int i = 1; i < length; i++) {
+    humidity_uint = humidity_uint | (pData[i] << i*8);
+  }
+  //humidityChar = (char*)pData;
   newHumidity = true;
-  Serial.print(newHumidity);
 }
 
 //function that prints the latest sensor readings
 void printReadings(){
   Serial.print(" Humidity:");
-  Serial.print(humidityChar);
+  Serial.print(humidity_uint);
   Serial.println("%");
-  client.publish("/humidity", humidityChar);
+  //client.publish("/humidity", humidityChar);
   Serial.print("Temperature:");
-  Serial.print(temperatureChar);
+  Serial.print(temperature_uint);
   Serial.print("C");
-  client.publish("/temperature", temperatureChar);  
+  //client.publish("/temperature", temperatureChar);  
 } 
 
 void setup() {
@@ -269,7 +277,6 @@ void loop() {
   if (newTemperature && newHumidity){
     newTemperature = false;
     newHumidity = false;
-    delay(100);
     printReadings();
   }
   delay(1000); // Delay a second between loops.
