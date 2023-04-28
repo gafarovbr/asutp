@@ -220,12 +220,16 @@ void printReadings(){
   Serial.print(" Humidity:");
   Serial.print(humidity_uint);
   Serial.println("%");
-  //client.publish("/humidity", humidityChar);
+  String humidityString = (String)humidity_uint;
+  const char* humiditymessage = humidityString.c_str();
+  client.publish("/humidity", humiditymessage);
   Serial.print("Temperature:");
   Serial.print(temperature_uint);
   Serial.print("C");
-  //client.publish("/temperature", temperatureChar);  
-} 
+  String temperatureString = (String)temperature_uint;
+  const char* temperaturemessage = temperatureString.c_str();  
+  client.publish("/temperature", temperaturemessage);  
+}
 
 void setup() {
   //OLED display setup
@@ -263,6 +267,7 @@ void loop() {
       //Activate the Notify property of each Characteristic
       temperatureCharacteristic->getDescriptor(BLEUUID((uint16_t)0x2902))->writeValue((uint8_t*)notificationOn, 2, true);
       humidityCharacteristic->getDescriptor(BLEUUID((uint16_t)0x2902))->writeValue((uint8_t*)notificationOn, 2, true);
+      
       connected = true;
     } else {
       Serial.println("We have failed to connect to the server; Restart your device to scan for nearby BLE server again.");
