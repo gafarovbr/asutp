@@ -29,14 +29,19 @@ PubSubClient client(espClient); //Частично инициализирова�
 /* UUID's of the service, characteristic that we want to read */
 // BLE Service
 static BLEUUID bmeServiceUUID("91bad492-b950-4226-aa2b-4ede9fa42f59");
+static BLEUUID lightServiceUUID("570e256b-9f4a-4e4a-9a6f-6e5bda9cf4ea");
+
 
 // BLE Characteristics
-  //Temperature Celsius Characteristic
-  static BLEUUID temperatureCharacteristicUUID("cba1d466-344c-4be3-ab3f-189f80dd7518");
+//Temperature Celsius Characteristic
+static BLEUUID temperatureCharacteristicUUID("cba1d466-344c-4be3-ab3f-189f80dd7518");
 
 
 // Humidity Characteristic
 static BLEUUID humidityCharacteristicUUID("ca73b3ba-39f6-4ab3-91ae-186dc9577d99");
+
+// Light Characteristic
+static BLEUUID lightingCharacteristicUUID("a82aeff6-eb48-48a2-b6da-f9b5e5462c91");
 
 //Flags stating if should begin connecting and if the connection is up
 static boolean doConnect = false;
@@ -48,6 +53,7 @@ static BLEAddress *pServerAddress;
 //Characteristicd that we want to read
 static BLERemoteCharacteristic* temperatureCharacteristic;
 static BLERemoteCharacteristic* humidityCharacteristic;
+static BLERemoteCharacteristic* lightingCharacteristic;
 
 //Activate notify
 const uint8_t notificationOn[] = {0x1, 0x0};
@@ -64,10 +70,12 @@ char* temperatureChar;
 char* humidityChar;
 uint32_t temperature_uint;
 uint32_t humidity_uint;
+uint32_t light_uint;
 
 //Flags to check whether new temperature and humidity readings are available
 boolean newTemperature = false;
 boolean newHumidity = false;
+boolean newLight = false;
 
 void setup_wifi() {
   delay(10);
@@ -155,18 +163,19 @@ bool connectToServer(BLEAddress pAddress) {
   Serial.println(" - Connected to server");
  
   // Obtain a reference to the service we are after in the remote BLE server.
-  BLERemoteService* pRemoteService = pClient->getService(bmeServiceUUID);
-  if (pRemoteService == nullptr) {
+  BLERemoteService* pRemoteServiceONE = pClient->getService(bmeServiceUUID);
+  BLERemoteService* pRemoteServiceTWO = pClient->getService(lightServiceUUID);  
+  if (pRemoteServiceONE == nullptr) {
     Serial.print("Failed to find our service UUID: ");
     Serial.println(bmeServiceUUID.toString().c_str());
     return (false);
   }
  
   // Obtain a reference to the characteristics in the service of the remote BLE server.
-  temperatureCharacteristic = pRemoteService->getCharacteristic(temperatureCharacteristicUUID);
-  humidityCharacteristic = pRemoteService->getCharacteristic(humidityCharacteristicUUID);
-
-  if (temperatureCharacteristic == nullptr || humidityCharacteristic == nullptr) {
+  temperatureCharacteristic = pRemoteServiceONE->getCharacteristic(temperatureCharacteristicUUID);
+  humidityCharacteristic = pRemoteServiceONE->getCharacteristic(humidityCharacteristicUUID);
+  lightingCharacteristic = pRemoteServiceTWO->getCharacteristic(lightingCharacteristicUUID);  
+  if (temperatureCharacteristic == nullptr || humidityCharacteristic == nullptr || lightingCharacteristic == nullptr) {
     Serial.print("Failed to find our characteristic UUID");
     return false;
   }
@@ -175,6 +184,7 @@ bool connectToServer(BLEAddress pAddress) {
   //Assign callback functions for the Characteristics
   temperatureCharacteristic->registerForNotify(temperatureNotifyCallback);
   humidityCharacteristic->registerForNotify(humidityNotifyCallback);
+  lightingCharacteristic->registerForNotify(lightNotifyCallback);
   return true;
 }
 
@@ -215,6 +225,18 @@ static void humidityNotifyCallback(BLERemoteCharacteristic* pBLERemoteCharacteri
   newHumidity = true;
 }
 
+//When the BLE Server sends a new lighting reading with the notify property
+static void lightNotifyCallback(BLERemoteCharacteristic* pBLERemoteCharacteristic, 
+                                    uint8_t* pData, size_t length, bool isNotify) {
+  //store humidity value
+  light_uint = pData[0];
+  for(int i = 1; i < length; i++) {
+    light_uint = light_uint | (pData[i] << i*8);
+  }
+  //humidityChar = (char*)pData;
+  newLight = true;
+}
+
 //function that prints the latest sensor readings
 void printReadings(){
   Serial.print(" Humidity:");
@@ -229,6 +251,12 @@ void printReadings(){
   String temperatureString = (String)temperature_uint;
   const char* temperaturemessage = temperatureString.c_str();  
   client.publish("/temperature", temperaturemessage);  
+  Serial.print("Lighting:");
+  Serial.print(light_uint);
+  Serial.print("%");
+  String lightString = (String)light_uint;
+  const char* lightmessage = lightString.c_str();  
+  client.publish("/lighting", lightmessage);  
 }
 
 void setup() {
@@ -267,7 +295,7 @@ void loop() {
       //Activate the Notify property of each Characteristic
       temperatureCharacteristic->getDescriptor(BLEUUID((uint16_t)0x2902))->writeValue((uint8_t*)notificationOn, 2, true);
       humidityCharacteristic->getDescriptor(BLEUUID((uint16_t)0x2902))->writeValue((uint8_t*)notificationOn, 2, true);
-      
+      lightingCharacteristic->getDescriptor(BLEUUID((uint16_t)0x2902))->writeValue((uint8_t*)notificationOn, 2, true);
       connected = true;
     } else {
       Serial.println("We have failed to connect to the server; Restart your device to scan for nearby BLE server again.");
@@ -279,9 +307,10 @@ void loop() {
   }
   client.loop();
   //if new temperature readings are available, print in the OLED
-  if (newTemperature && newHumidity){
+  if (newTemperature && newHumidity && newLight){
     newTemperature = false;
     newHumidity = false;
+    newLight = false;
     printReadings();
   }
   delay(1000); // Delay a second between loops.
