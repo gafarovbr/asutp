@@ -11,11 +11,12 @@ const char* ssid = "IpHoNeBuLaT";
 const char* password = "12345567";
 
 // IP-адрес MQTT-брокера
-const char *mqtt_server = "m4.wqtt.ru";                 //const char* mqtt_server = "ksia.ddwarf.ru";
-const char *mqtt_username = "u_0ZVHCT";
-const char *mqtt_password = "bs5yit2y";
-const int mqtt_port = 7990;                            //const int mqtt_port = 1883;
-
+//const char *mqtt_server = "m4.wqtt.ru";                 //const char* mqtt_server = "ksia.ddwarf.ru";
+//const char *mqtt_username = "u_0ZVHCT";
+//const char *mqtt_password = "bs5yit2y";
+//const int mqtt_port = 7990;                            //const int mqtt_port = 1883;
+const char* mqtt_server = "172.20.10.2";
+const int mqtt_port = 1883;
 WiFiClient espClient; // Инициализация нашей платы как сетевого клиента WIFI
 PubSubClient client(espClient); //Частично инициализированный экземпляр клиента MQTT.
 
@@ -137,7 +138,8 @@ void reconnect() {
   while (!client.connected()) {
     Serial.print("Attempting MQTT connection...");
     // Attempt to connect
-    if (client.connect("ESP32Client", mqtt_username, mqtt_password, "mytopic/status", 2, true,  "'{ \"clientId\": \"any\", \"state\": \"offline\" }' ")) {
+    //if (client.connect("ESP32Client", mqtt_username, mqtt_password, "mytopic/status", 2, true,  "'{ \"clientId\": \"any\", \"state\": \"offline\" }' ")) {
+    if (client.connect("ESP32Client", "mytopic/status", 2, true,  "'{ \"clientId\": \"any\", \"state\": \"offline\" }' ")) {      
       client.publish("/lwt", "test_signal");
       Serial.println("connected");
       // Subscribe
@@ -258,25 +260,29 @@ void printReadings(){
   Serial.print(humidity_uint);
   Serial.println("%");
   String humidityString = (String)humidity_uint;
-  const char* humiditymessage = humidityString.c_str();
+  String humidityStringjson = String("{ value: ")+humidityString+String(" }");   
+  const char* humiditymessage = humidityStringjson.c_str();
   client.publish("/humidity", humiditymessage);
   Serial.print("Temperature:");
   Serial.print(temperature_uint);
   Serial.print("C");
   String temperatureString = (String)temperature_uint;
-  const char* temperaturemessage = temperatureString.c_str();  
+  String temperatureStringjson = String("{ value: ")+temperatureString+String(" }"); 
+  const char* temperaturemessage = temperatureStringjson.c_str();  
   client.publish("/temperature", temperaturemessage);  
   Serial.print("Lighting:");
   Serial.print(light_uint);
   Serial.print("%");
   String lightString = (String)light_uint;
-  const char* lightmessage = lightString.c_str();  
+  String lightStringjson = String("{ value: ")+lightString+String(" }"); 
+  const char* lightmessage = lightStringjson.c_str();  
   client.publish("/lighting", lightmessage);  
   Serial.print(" PPM:");
   Serial.print(ppm_uint);
   Serial.print(" ppm");
   String ppmString = (String)ppm_uint;
-  const char* ppmmessage = ppmString.c_str();  
+  String ppmStringjson = String("{ value: ")+ppmString+String(" }"); 
+  const char* ppmmessage = ppmStringjson.c_str();  
   client.publish("/ppm", ppmmessage); 
 }
 
