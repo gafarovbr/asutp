@@ -1,17 +1,22 @@
 //Код для клиента, который принимает температуру, влажность и освещенность 
-// Добавлена освещенность, но уходит в резет(((((
 #include <WiFi.h>
 #include <PubSubClient.h>
 #include "BLEDevice.h"
 #include <Wire.h>
+#include <NTPClient.h>
 
 
+//NTP-сервер
+WiFiUDP ntpUDP;
+NTPClient timeClient(ntpUDP, "pool.ntp.org");
+
+const char* jsonfile;
 // Задаем параметры WIFI, к которому подключается микроконтроллер
 const char* ssid = "IpHoNeBuLaT";
 const char* password = "12345567";
 
 // IP-адрес MQTT-брокера
-const char *mqtt_server = "m4.wqtt.ru";                 //const char* mqtt_server = "ksia.ddwarf.ru";
+const char *mqtt_server = "m4.wqtt.ru";                //const char* mqtt_server = "ksia.ddwarf.ru";
 const char *mqtt_username = "u_0ZVHCT";
 const char *mqtt_password = "bs5yit2y";
 const int mqtt_port = 7990;                            //const int mqtt_port = 1883;
@@ -19,13 +24,10 @@ const int mqtt_port = 7990;                            //const int mqtt_port = 1
 WiFiClient espClient; // Инициализация нашей платы как сетевого клиента WIFI
 PubSubClient client(espClient); //Частично инициализированный экземпляр клиента MQTT.
 
-
-
-
-
 //BLE Server name (the other ESP32 name running the server sketch)
 #define bleServerName "BME280_ESP32"
-
+//ШИМ
+#define dutyCycle 255
 /* UUID's of the service, characteristic that we want to read */
 // BLE Service
 static BLEUUID bmeServiceUUID("91bad492-b950-4226-aa2b-4ede9fa42f59");
@@ -78,6 +80,58 @@ boolean newHumidity = false;
 boolean newLight = false;
 boolean newppm = false;
 
+//////////////////////////////////////////////////////////////////////////////////\////Переменные по насосу
+byte state; // Переменная отвечающая за состояния насоса
+bool block; //Переменная, блокирующая смену режима при режиме ремонт
+bool flag = 0;  // флаг, отвечающий за получение команды переключения режима
+int Mode;
+int ModeFin = 0; // Задаем изначально ручной режим.
+bool button = 0; // Переменная, отвечающая за включение насоса
+//bool test_variable;
+//char* mes; // переменная, отвечающая за строку, преобразованную из json-объекта и формирующую кнопку, что подключение выполнено
+volatile double WaterFlow; // Переменная, считающая расход воды в литрах
+volatile double WaterFlowPrev;
+uint32_t myTimer1; // Таймер, который отвечает за то, чтобы значения датчика влажности передавались раз в 5 сек.
+int tempSum1 = 0, temp1; // датчики влажности
+int tempSum2 = 0, temp2;
+int tempSum3 = 0, temp3;
+byte tempCounter;// датчик влажности
+bool stateIM; // переменная отвечающая за состояние насоса и клапанов
+
+
+// номер порта
+const int pinD13 = 13;  // Инициализация порта ШИМ
+const int pinD34 = 34;  // Инициализация портов датчиков влажности почвы
+const int pinD36 = 36;                    
+const int pinD39 = 39;
+const int pinD14  = 14; // Пин, к которому подключено реле клапана
+const int pinD02 = 2;   // Пин, к которому подключено реле осветительного прибора 
+const int pinD00 = 0;   // Пин, к которому подключено реле клапана
+const int pinD16 = 16;  // Пин, к которому подключен датчик уровня воды
+
+// задаём свойства ШИМ-сигнала
+const int freq = 5000;
+const int ledChannel = 0;
+const int resolution = 8;
+
+void watering();
+void getTemp();
+void pulse();
+int StateIM();
+void StateProcessing();
+void ModeSwitching();
+void BlockControl();
+void WateringControl();
+////////////////////////////////////////////////////////////////////////Конец переменных по насосу
+
+const char* tempjson = "{\"widget\": \"anydata\", \"order\": \"1\", \"descr\": \"Температура в офисе\", \"topic\": \"/IoTmanager/BME280_ESP32/1\", \"after\": \"°C\", \"icon\": \"thermometer-outline\"}";
+const char* humjson = "{\"widget\": \"anydata\", \"order\": \"2\", \"descr\": \"Влажность в офисе\", \"topic\": \"/IoTmanager/BME280_ESP32/2\", \"after\": \"%\", \"icon\": \"water\"}";
+const char* lightjson = "{\"widget\": \"anydata\", \"order\": \"3\", \"descr\": \"Освещенность\", \"topic\": \"/IoTmanager/BME280_ESP32/3\", \"after\": \"%\", \"icon\": \"sunny\"}";
+const char* ppmjson = "{\"widget\": \"anydata\", \"order\": \"4\", \"descr\": \"Уровень CO2\", \"topic\": \"/IoTmanager/BME280_ESP32/4\", \"after\": \"ppm\", \"icon\": \"body\"}";
+const char* statusjson = "{\"widget\": \"btn\", \"order\": \"5\", \"descr\": \"Состояние умного офиса\", \"topic\": \"/IoTmanager/BME280_ESP32/1111\", \"size\": \"small\",\"color\": \"green\", \"icon\": \"power\",\"status\": \"ON\",\"iconslot\": \"start\"}";
+
+
+
 void setup_wifi() {
   delay(10);
   // Начинаем подключаться к WiFi сети
@@ -114,22 +168,31 @@ void callback(char *topic, byte *message, unsigned int length) {
   //}
   Serial.println();
   Serial.println("-----------------------");
-  /*if (String(topic) == "/commands/ab941888-c303-11ed-afa1-0242ac120002") {    //получение топика команды/насос
+  if (String(topic) == "/commands/ab941888-c303-11ed-afa1-0242ac120002") {    //получение топика команды/насос
     flag = 1;
     if (message[0] == '0') Mode = 0;                                            //Ручной режим
     if (message[0] == '1') Mode = 1;                                            //По таймеру
     if (message[0] == '2') Mode = 2;                                            //По датчику
     if (message[0] == '3') Mode = 3;                                            //Ремонт
+    if (message[0] == '4') Mode = 4;                                            //Выход из ремонта
   }
   if (String(topic) == "/commands/708ebcc4-358d-4988-8b34-30cd708866d5"){
     if (message[0] == '0') button = 0;                                            //Выкл насос
     if (message[0] == '1') button = 1;                                             //Вкл насос
   }
-  if (String(topic) == "/IoTmanager")
+  if ((String(topic) == "/IoTmanager") && (message[0] == 'H') && (message[1] == 'E') && (message[2] == 'L'))
   {
-    client.publish("/IoTmanager/lampochka/config", mes);
-    Serial.println(mes);
-  }*/
+    client.publish("/IoTmanager/BME280_ESP32/config", tempjson);
+    delay(100);
+    client.publish("/IoTmanager/BME280_ESP32/config", humjson);
+    delay(100);
+    client.publish("/IoTmanager/BME280_ESP32/config", lightjson);
+    delay(100);
+    client.publish("/IoTmanager/BME280_ESP32/config", ppmjson);
+    delay(100);
+    client.publish("/IoTmanager/BME280_ESP32/config", statusjson);
+    //Serial.println(mes);
+  }
 }
 // функция, отвечающая за подключение к mqtt-брокеру
 void reconnect() {
@@ -137,8 +200,8 @@ void reconnect() {
   while (!client.connected()) {
     Serial.print("Attempting MQTT connection...");
     // Attempt to connect
-    if (client.connect("ESP32Client", mqtt_username, mqtt_password, "mytopic/status", 2, true,  "'{ \"clientId\": \"any\", \"state\": \"offline\" }' ")) {
-      client.publish("/lwt", "test_signal");
+    if (client.connect("ESP32Client", mqtt_username, mqtt_password, "/IoTmanager/BME280_ESP32/1111/status", 2, true, "{ \"color\": \"red\", \"status\": \"OFF\", \"iconslot\": \"end\"}")) {
+      client.publish("/IoTmanager/BME280_ESP32/1111/status", "{ \"color\": \"green\", \"status\": \"ON\", \"iconslot\": \"start\"}");
       Serial.println("connected");
       // Subscribe
       client.subscribe("/commands/ab941888-c303-11ed-afa1-0242ac120002");
@@ -258,26 +321,30 @@ void printReadings(){
   Serial.print(humidity_uint);
   Serial.println("%");
   String humidityString = (String)humidity_uint;
-  const char* humiditymessage = humidityString.c_str();
-  client.publish("/humidity", humiditymessage);
+  String humidityStringjson = String("{ \"status\": ")+humidityString+String(" }");   
+  const char* humiditymessage = humidityStringjson.c_str();
+  client.publish("/IoTmanager/BME280_ESP32/2/status", humiditymessage);
   Serial.print("Temperature:");
   Serial.print(temperature_uint);
   Serial.print("C");
   String temperatureString = (String)temperature_uint;
-  const char* temperaturemessage = temperatureString.c_str();  
-  client.publish("/temperature", temperaturemessage);  
+  String temperatureStringjson = String("{ \"status\": ")+temperatureString+String(" }"); 
+  const char* temperaturemessage = temperatureStringjson.c_str();   
+  client.publish("/IoTmanager/BME280_ESP32/1/status", temperaturemessage);  
   Serial.print("Lighting:");
   Serial.print(light_uint);
   Serial.print("%");
   String lightString = (String)light_uint;
-  const char* lightmessage = lightString.c_str();  
-  client.publish("/lighting", lightmessage);  
+  String lightStringjson = String("{ \"status\": ")+lightString+String(" }"); 
+  const char* lightmessage = lightStringjson.c_str();  
+  client.publish("/IoTmanager/BME280_ESP32/3/status", lightmessage);  
   Serial.print(" PPM:");
   Serial.print(ppm_uint);
   Serial.print(" ppm");
   String ppmString = (String)ppm_uint;
-  const char* ppmmessage = ppmString.c_str();  
-  client.publish("/ppm", ppmmessage); 
+  String ppmStringjson = String("{ \"status\": ")+ppmString+String(" }"); 
+  const char* ppmmessage = ppmStringjson.c_str();  
+  client.publish("/IoTmanager/BME280_ESP32/4/status", ppmmessage); 
 }
 
 void setup() {
@@ -304,12 +371,30 @@ void setup() {
   client.setServer(mqtt_server, mqtt_port); // Инициализация экземпляра клиента MQTT
   client.setCallback(callback);
   
+  timeClient.begin();// Инициализация NTP-клиента
+  timeClient.setTimeOffset(10800);
+
+  
+  pinMode (pinD34, INPUT); // Установим вывод D34 как вход (Датчики влажности)
+  pinMode (pinD36, INPUT); // Установим вывод D36 как вход
+  pinMode (pinD39, INPUT); // Установим вывод D39 как вход
+  pinMode (pinD14, OUTPUT); // Установим вывод D14 как выход (Клапана)
+  pinMode (pinD00, OUTPUT); // Установим вывод D00 как выход
+  pinMode (pinD16, INPUT_PULLUP); // Конфигурируем вывод как вход, подтягивая его до уровня логической «1» через внутренний подтягивающий резистор
+  ledcSetup (ledChannel, freq, resolution);
+  
+  // привязываем канал к порту
+  ledcAttachPin(pinD13, ledChannel);
+
+
+
+  
+  WaterFlow = 0; // Обнуляем расход
+  attachInterrupt(27, pulse, RISING); //Настраиваем прерывания на 27 пин (Пин, к которому подключен датчик расхода жидкости)
 }
 
 void loop() {
-  // If the flag "doConnect" is true then we have scanned for and found the desired
-  // BLE Server with which we wish to connect.  Now we connect to it.  Once we are
-  // connected we set the connected flag to be true.
+  timeClient.update();// Обновление времени
   if (doConnect == true) {
     if (connectToServer(*pServerAddress)) {
       Serial.println("We are now connected to the BLE Server.");
@@ -328,13 +413,19 @@ void loop() {
     reconnect();
   }
   client.loop();
-  //if new temperature readings are available, print in the OLED
+  watering(); 
   if (newTemperature && newppm && newHumidity && newLight){
     newTemperature = false;
     newHumidity = false;
     newLight = false;
     newppm = false;
     printReadings();
+  }
+
+  //Получение значений влажности почвы
+    if (millis() - myTimer1 >= 1000) {
+    myTimer1 = millis(); // сбросить таймер
+    getTemp();
   }
   delay(1000); // Delay a second between loops.
 }
