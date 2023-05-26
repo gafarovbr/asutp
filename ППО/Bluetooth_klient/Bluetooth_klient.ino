@@ -1,3 +1,4 @@
+// Меняет по датчику, по таймеру, ручной режим, но надо доделать отправку статуса, при получении топика, скорее всего из-за этого плохая визуализация.
 //Код для клиента, который принимает температуру, влажность и освещенность 
 #include <WiFi.h>
 #include <PubSubClient.h>
@@ -114,6 +115,9 @@ const int freq = 5000;
 const int ledChannel = 0;
 const int resolution = 8;
 
+bool costyl; // Переменная для переключения режима
+
+
 void watering();
 void getTemp();
 void pulse();
@@ -124,11 +128,12 @@ void BlockControl();
 void WateringControl();
 ////////////////////////////////////////////////////////////////////////Конец переменных по насосу
 
-const char* tempjson = "{\"widget\": \"anydata\", \"order\": \"1\", \"descr\": \"Температура в офисе\", \"topic\": \"/IoTmanager/BME280_ESP32/1\", \"after\": \"°C\", \"icon\": \"thermometer-outline\"}";
-const char* humjson = "{\"widget\": \"anydata\", \"order\": \"2\", \"descr\": \"Влажность в офисе\", \"topic\": \"/IoTmanager/BME280_ESP32/2\", \"after\": \"%\", \"icon\": \"water\"}";
-const char* lightjson = "{\"widget\": \"anydata\", \"order\": \"3\", \"descr\": \"Освещенность\", \"topic\": \"/IoTmanager/BME280_ESP32/3\", \"after\": \"%\", \"icon\": \"sunny\"}";
-const char* ppmjson = "{\"widget\": \"anydata\", \"order\": \"4\", \"descr\": \"Уровень CO2\", \"topic\": \"/IoTmanager/BME280_ESP32/4\", \"after\": \"ppm\", \"icon\": \"body\"}";
-const char* statusjson = "{\"widget\": \"btn\", \"order\": \"5\", \"descr\": \"Состояние умного офиса\", \"topic\": \"/IoTmanager/BME280_ESP32/1111\", \"size\": \"small\",\"color\": \"green\", \"icon\": \"power\",\"status\": \"ON\",\"iconslot\": \"start\"}";
+const char* tempjson = "{\"widget\": \"anydata\", \"page\": \"Датчики\", \"order\": \"1\", \"descr\": \"Температура в офисе\", \"topic\": \"/IoTmanager/B/1\", \"after\": \"°C\", \"icon\": \"thermometer-outline\"}";
+const char* humjson = "{\"widget\": \"anydata\", \"page\": \"Датчики\", \"order\": \"2\", \"descr\": \"Влажность в офисе\", \"topic\": \"/IoTmanager/B/2\", \"after\": \"%\", \"icon\": \"water\"}";
+const char* lightjson = "{\"widget\": \"anydata\", \"page\": \"Датчики\", \"order\": \"3\", \"descr\": \"Освещенность\", \"topic\": \"/IoTmanager/B/3\", \"after\": \"%\", \"icon\": \"sunny\"}";
+const char* ppmjson = "{\"widget\": \"anydata\", \"page\": \"Датчики\", \"order\": \"4\", \"descr\": \"Уровень CO2\", \"topic\": \"/IoTmanager/B/4\", \"after\": \"ppm\", \"icon\": \"body\"}";
+const char* statusjson = "{\"widget\": \"btn\", \"page\": \"Датчики\", \"order\": \"5\", \"descr\": \"Состояние умного офиса\", \"topic\": \"/IoTmanager/B/5\", \"size\": \"small\",\"color\": \"green\", \"icon\": \"power\",\"status\": \"ON\",\"iconslot\": \"start\"}";
+const char* modejson = "{\"widget\": \"select\", \"page\": \"Полив\", \"descr\": \"Режим полива\", \"topic\": \"/IoTmanager/B/21\", \"size\": \"small\",\"fill\": \"outline\", \"options\": [\"Ручной\",\"По таймеру\",\"По датчику\"],\"status\": \"0\"}";
 
 
 
@@ -162,17 +167,32 @@ void setup_wifi() {
 void callback(char *topic, byte *message, unsigned int length) {
   Serial.print("Message arrived in topic: ");
   Serial.println(topic);
-  //Serial.print("Message:");
-  //for (int i = 0; i < length; i++) {
-  //Serial.print((char) message[i]);
-  //}
+  Serial.print("Message:");
+  for (int i = 0; i < length; i++) {
+  Serial.print((char) message[i]);
+  }
   Serial.println();
   Serial.println("-----------------------");
-  if (String(topic) == "/commands/ab941888-c303-11ed-afa1-0242ac120002") {    //получение топика команды/насос
-    flag = 1;
-    if (message[0] == '0') Mode = 0;                                            //Ручной режим
-    if (message[0] == '1') Mode = 1;                                            //По таймеру
-    if (message[0] == '2') Mode = 2;                                            //По датчику
+  if (String(topic) == "/IoTmanager/B/21/control") {    //получение топика команды/выбор режима
+    flag = 1;        
+    char h = (char)message[0];
+    Serial.println(h);
+    if (h == '0')                                              //Ручной режим
+    {
+      Mode = 0;
+      costyl = 1;
+      client.publish("/IoTmanager/B/21/status", "{\"status\":\"0\"}"); // Обратная связь, чтобы переключился ползунок в приложении
+    }                                                  
+    if (h == '1')                                            //По таймеру
+    {
+      Mode = 1;
+      client.publish("/IoTmanager/B/21/status", "{\"status\":\"1\"}"); // Обратная связь, чтобы переключился ползунок в приложении
+    }
+    if (h == '2')                                            //По датчику
+    {
+      Mode = 2;
+      client.publish("/IoTmanager/B/21/status", "{\"status\":\"2\"}"); // Обратная связь, чтобы переключился ползунок в приложении
+    }
     if (message[0] == '3') Mode = 3;                                            //Ремонт
     if (message[0] == '4') Mode = 4;                                            //Выход из ремонта
   }
@@ -182,15 +202,17 @@ void callback(char *topic, byte *message, unsigned int length) {
   }
   if ((String(topic) == "/IoTmanager") && (message[0] == 'H') && (message[1] == 'E') && (message[2] == 'L'))
   {
-    client.publish("/IoTmanager/BME280_ESP32/config", tempjson);
+    client.publish("/IoTmanager/B/config", tempjson);
     delay(100);
-    client.publish("/IoTmanager/BME280_ESP32/config", humjson);
+    client.publish("/IoTmanager/B/config", humjson);
     delay(100);
-    client.publish("/IoTmanager/BME280_ESP32/config", lightjson);
+    client.publish("/IoTmanager/B/config", lightjson);
     delay(100);
-    client.publish("/IoTmanager/BME280_ESP32/config", ppmjson);
+    client.publish("/IoTmanager/B/config", ppmjson);
     delay(100);
-    client.publish("/IoTmanager/BME280_ESP32/config", statusjson);
+    client.publish("/IoTmanager/B/config", statusjson);
+    delay(100);    
+    client.publish("/IoTmanager/B/config", modejson);
     //Serial.println(mes);
   }
 }
@@ -200,13 +222,14 @@ void reconnect() {
   while (!client.connected()) {
     Serial.print("Attempting MQTT connection...");
     // Attempt to connect
-    if (client.connect("ESP32Client", mqtt_username, mqtt_password, "/IoTmanager/BME280_ESP32/1111/status", 2, true, "{ \"color\": \"red\", \"status\": \"OFF\", \"iconslot\": \"end\"}")) {
-      client.publish("/IoTmanager/BME280_ESP32/1111/status", "{ \"color\": \"green\", \"status\": \"ON\", \"iconslot\": \"start\"}");
+    if (client.connect("ESP32Client", mqtt_username, mqtt_password, "/IoTmanager/B/5/status", 2, true, "{ \"color\": \"red\", \"status\": \"OFF\", \"iconslot\": \"end\"}")) {
+      client.publish("/IoTmanager/B/5/status", "{ \"color\": \"green\", \"status\": \"ON\", \"iconslot\": \"start\"}");
       Serial.println("connected");
       // Subscribe
       client.subscribe("/commands/ab941888-c303-11ed-afa1-0242ac120002");
       client.subscribe("/commands/708ebcc4-358d-4988-8b34-30cd708866d5");
       client.subscribe("/IoTmanager");                     //!!! ПОДПИСЫВАЕМСЯ НА НУЖНЫЕ ТЕМЫ, ESP32 подписан на тему esp32/test_back  для получения сообщений, опубликованных в этой теме
+      client.subscribe("/IoTmanager/B/21/control");    
     } else {
       Serial.print("failed, rc=");
       Serial.print(client.state());
@@ -323,28 +346,28 @@ void printReadings(){
   String humidityString = (String)humidity_uint;
   String humidityStringjson = String("{ \"status\": ")+humidityString+String(" }");   
   const char* humiditymessage = humidityStringjson.c_str();
-  client.publish("/IoTmanager/BME280_ESP32/2/status", humiditymessage);
+  client.publish("/IoTmanager/B/2/status", humiditymessage);
   Serial.print("Temperature:");
   Serial.print(temperature_uint);
   Serial.print("C");
   String temperatureString = (String)temperature_uint;
   String temperatureStringjson = String("{ \"status\": ")+temperatureString+String(" }"); 
   const char* temperaturemessage = temperatureStringjson.c_str();   
-  client.publish("/IoTmanager/BME280_ESP32/1/status", temperaturemessage);  
+  client.publish("/IoTmanager/B/1/status", temperaturemessage);  
   Serial.print("Lighting:");
   Serial.print(light_uint);
   Serial.print("%");
   String lightString = (String)light_uint;
   String lightStringjson = String("{ \"status\": ")+lightString+String(" }"); 
   const char* lightmessage = lightStringjson.c_str();  
-  client.publish("/IoTmanager/BME280_ESP32/3/status", lightmessage);  
+  client.publish("/IoTmanager/B/3/status", lightmessage);  
   Serial.print(" PPM:");
   Serial.print(ppm_uint);
   Serial.print(" ppm");
   String ppmString = (String)ppm_uint;
   String ppmStringjson = String("{ \"status\": ")+ppmString+String(" }"); 
   const char* ppmmessage = ppmStringjson.c_str();  
-  client.publish("/IoTmanager/BME280_ESP32/4/status", ppmmessage); 
+  client.publish("/IoTmanager/B/4/status", ppmmessage); 
 }
 
 void setup() {
@@ -419,7 +442,7 @@ void loop() {
     newHumidity = false;
     newLight = false;
     newppm = false;
-    printReadings();
+    //printReadings();
   }
 
   //Получение значений влажности почвы
