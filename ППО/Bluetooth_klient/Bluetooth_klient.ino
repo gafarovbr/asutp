@@ -115,8 +115,6 @@ const int freq = 5000;
 const int ledChannel = 0;
 const int resolution = 8;
 
-bool costyl; // Переменная для переключения режима
-
 
 void watering();
 void getTemp();
@@ -133,9 +131,12 @@ const char* humjson = "{\"widget\": \"anydata\", \"page\": \"Датчики\", \
 const char* lightjson = "{\"widget\": \"anydata\", \"page\": \"Датчики\", \"order\": \"3\", \"descr\": \"Освещенность\", \"topic\": \"/IoTmanager/B/3\", \"after\": \"%\", \"icon\": \"sunny\"}";
 const char* ppmjson = "{\"widget\": \"anydata\", \"page\": \"Датчики\", \"order\": \"4\", \"descr\": \"Уровень CO2\", \"topic\": \"/IoTmanager/B/4\", \"after\": \"ppm\", \"icon\": \"body\"}";
 const char* statusjson = "{\"widget\": \"btn\", \"page\": \"Датчики\", \"order\": \"5\", \"descr\": \"Состояние умного офиса\", \"topic\": \"/IoTmanager/B/5\", \"size\": \"small\",\"color\": \"green\", \"icon\": \"power\",\"status\": \"ON\",\"iconslot\": \"start\"}";
-const char* modejson = "{\"widget\": \"select\", \"page\": \"Полив\", \"descr\": \"Режим полива\", \"topic\": \"/IoTmanager/B/21\", \"size\": \"small\",\"fill\": \"outline\", \"options\": [\"Ручной\",\"По таймеру\",\"По датчику\"],\"status\": \"0\"}";
+const char* statejson = "{\"widget\": \"btn\", \"page\": \"Полив\", \"order\": \"1\", \"descr\": \"Состояние ИМ\", \"topic\": \"/IoTmanager/B/22\", \"size\": \"small\",\"color\": \"red\", \"icon\": \"power\",\"status\": \"OFF\",\"iconslot\": \"end\"}";
+const char* modejson = "{\"widget\":\"select\",\"page\":\"Полив\",\"order\":\"2\",\"descr\":\"Режим полива\",\"topic\":\"/IoTmanager/B/21\",\"size\":\"small\",\"fill\":\"outline\",\"options\":[\"Ручной\",\"По таймеру\",\"По датчику\"],\"status\":\"0\"}";
+const char* manualjson = "{\"widget\": \"anydata\", \"page\": \"Полив\", \"order\": \"3\", \"descr\": \"Ручной режим\", \"topic\": \"/IoTmanager/B/23\"}";
+const char* buttonjson = "{\"widget\": \"toggle\", \"page\": \"Полив\", \"order\": \"4\", \"descr\": \"Вкл./Выкл. ИМ\", \"topic\": \"/IoTmanager/B/24\", \"status\": \"0\"}";
 
-
+		
 
 void setup_wifi() {
   delay(10);
@@ -173,14 +174,14 @@ void callback(char *topic, byte *message, unsigned int length) {
   }
   Serial.println();
   Serial.println("-----------------------");
-  if (String(topic) == "/IoTmanager/B/21/control") {    //получение топика команды/выбор режима
+  if (String(topic) == "/IoTmanager/B/21/control") {    //получение топика команды выбор режима
     flag = 1;        
     char h = (char)message[0];
     Serial.println(h);
     if (h == '0')                                              //Ручной режим
     {
       Mode = 0;
-      costyl = 1;
+      //costyl = 1;
       client.publish("/IoTmanager/B/21/status", "{\"status\":\"0\"}"); // Обратная связь, чтобы переключился ползунок в приложении
     }                                                  
     if (h == '1')                                            //По таймеру
@@ -196,6 +197,22 @@ void callback(char *topic, byte *message, unsigned int length) {
     if (message[0] == '3') Mode = 3;                                            //Ремонт
     if (message[0] == '4') Mode = 4;                                            //Выход из ремонта
   }
+  if (String(topic) == "/IoTmanager/B/24/control") {    //получение топика команды включить выключить ИМ в ручном режиме
+//    if (message[0] == '0') button = 0;                                            //Выкл насос
+//    if (message[0] == '1') button = 1;                                             //Вкл насос  
+    char a = (char)message[0];
+    Serial.println(a);
+    if (a == '0')                                       //Выкл насос
+    {
+      button = 0;
+      if (Mode == 0) client.publish("/IoTmanager/B/24/status","{\"status\":\"0\"}");      
+    }                                            
+    if (a == '1')                                       //Вкл насос   
+    {
+      button = 1;
+      if (Mode == 0) client.publish("/IoTmanager/B/24/status","{\"status\":\"1\"}");  
+    }                                              
+  }  
   if (String(topic) == "/commands/708ebcc4-358d-4988-8b34-30cd708866d5"){
     if (message[0] == '0') button = 0;                                            //Выкл насос
     if (message[0] == '1') button = 1;                                             //Вкл насос
@@ -213,6 +230,11 @@ void callback(char *topic, byte *message, unsigned int length) {
     client.publish("/IoTmanager/B/config", statusjson);
     delay(100);    
     client.publish("/IoTmanager/B/config", modejson);
+    delay(100);
+    client.publish("/IoTmanager/B/config", statejson);
+    client.publish("/IoTmanager/B/config", manualjson);
+    client.publish("/IoTmanager/B/config", buttonjson);
+       
     //Serial.println(mes);
   }
 }
@@ -229,7 +251,8 @@ void reconnect() {
       client.subscribe("/commands/ab941888-c303-11ed-afa1-0242ac120002");
       client.subscribe("/commands/708ebcc4-358d-4988-8b34-30cd708866d5");
       client.subscribe("/IoTmanager");                     //!!! ПОДПИСЫВАЕМСЯ НА НУЖНЫЕ ТЕМЫ, ESP32 подписан на тему esp32/test_back  для получения сообщений, опубликованных в этой теме
-      client.subscribe("/IoTmanager/B/21/control");    
+      client.subscribe("/IoTmanager/B/21/control"); 
+      client.subscribe("/IoTmanager/B/24/control");         
     } else {
       Serial.print("failed, rc=");
       Serial.print(client.state());
@@ -442,7 +465,7 @@ void loop() {
     newHumidity = false;
     newLight = false;
     newppm = false;
-    //printReadings();
+    printReadings();
   }
 
   //Получение значений влажности почвы

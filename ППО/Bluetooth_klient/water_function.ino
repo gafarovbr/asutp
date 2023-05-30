@@ -100,20 +100,23 @@ void WateringControl() //Управляет поливом (включает, в
   switch(ModeFin)
   {
     case 0:
-    costyl = 0;
+    //costyl = 0;
     Serial.println("Я в ручном режиме!!");
     if (button == 1){
      // digitalWrite(pinD02, LOW);
       block = 1; // Ставим запрет на смену режима           
       digitalWrite(pinD00, LOW);
       digitalWrite(pinD14, LOW);
+      client.publish("/IoTmanager/B/22/status", "{ \"color\": \"green\", \"status\": \"ON\", \"iconslot\": \"start\"}");
       stateIM = 1;
     //Serial.println("Мы везде подаем лоу");
       ledcWrite(ledChannel, dutyCycle);
-      if (millis() - tmr1 >= 6000000) {  // Если включено больше 10 минут, то выключаем и кнопку включения на выключения
+      if (millis() - tmr1 >= 6000000) {  // Если включено больше 10 минут, то выключаем и кнопку включения на выключение
       tmr1 = millis();   // Сбрасываем таймер
       digitalWrite(pinD14, HIGH);
       digitalWrite(pinD00, HIGH);
+      client.publish("/IoTmanager/B/22/status","{ \"color\": \"red\", \"status\": \"OFF\", \"iconslot\": \"end\"}");
+      block = 0;      
       stateIM = 0;
       ledcWrite(ledChannel, 0);
     //   Serial.println("Мы везде подаем high но после 10 минут");
@@ -127,6 +130,7 @@ void WateringControl() //Управляет поливом (включает, в
      // digitalWrite(pinD02, HIGH);
       digitalWrite(pinD14, HIGH);
       digitalWrite(pinD00, HIGH);
+      client.publish("/IoTmanager/B/22/status","{ \"color\": \"red\", \"status\": \"OFF\", \"iconslot\": \"end\"}");
    //   Serial.println("Мы везде подаем high так как button == 0");
       WaterFlowPrev = WaterFlow;
       ledcWrite(ledChannel, 0);
@@ -142,12 +146,14 @@ void WateringControl() //Управляет поливом (включает, в
       Serial.println(timeClient.getMinutes());
       digitalWrite(pinD14, LOW);
       digitalWrite(pinD00, LOW);
+      client.publish("/IoTmanager/B/22/status", "{ \"color\": \"green\", \"status\": \"ON\", \"iconslot\": \"start\"}");
       ledcWrite(ledChannel, dutyCycle);
       stateIM = 1;
     }
     else {
       digitalWrite(pinD14, HIGH);
       digitalWrite(pinD00, HIGH);
+      client.publish("/IoTmanager/B/22/status","{ \"color\": \"red\", \"status\": \"OFF\", \"iconslot\": \"end\"}");
       stateIM = 0;
       WaterFlowPrev = WaterFlow;
       ledcWrite(ledChannel, 0);
